@@ -773,10 +773,10 @@ var Fabrique;
             }
             return __extends(b, a),
             b.prototype.openGame = function() {
-                this.game.analytics && this.game.analytics.google.sendGenericEvent("MoreGames", "Click", this.id),
-                this.url.indexOf("http://") !== -1 && this.url.replace("http:", "");
-                var a = window.open(this.url, "_self");
-                a && a.focus && a.focus()
+                this.game.analytics && this.game.analytics.google.sendGenericEvent("MoreGames", "Click", this.id);
+                // 安全修复：禁用恶意跳转，防止跳转到 cmug.gitlab.io 等恶意网站
+                console.log("Blocked potentially malicious redirect to:", this.url);
+                return false;
             }
             ,
             b.prototype.destroy = function() {
