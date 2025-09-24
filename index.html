@@ -12,112 +12,66 @@
     <meta name="author" content="Your Name">
     <meta name="keywords" content="Snow Rider 3D, skiing game, winter sports, snowboarding, ski game, mountain landscapes, skiing adventure, snowboarding adventure, snowy mountain, sleigh ride, winter game">
     <script>
-        // === 超早期强制防护：在任何脚本加载前拦截 ===
-        console.log("🛡️ 部署超早期防护系统...");
+        // === 超早期防护：直接禁用 gd-sdk.js 和恶意跳转 ===
+        console.log("🛡️ 启动反广告跳转防护...");
 
-        // 1. 完全禁用 window.open - 最强硬的拦截
-        window.open = function() {
-            console.warn("🚫 已强制阻止 window.open 调用:", arguments[0] || "unknown");
-            console.trace("调用堆栈:");
+        // 1. 完全禁用 window.open
+        window.open = function(url) {
+            console.warn("🚫 已阻止 window.open 跳转到:", url);
             return {
-                focus: function(){},
-                blur: function(){},
-                close: function(){},
-                closed: false,
-                location: { href: "" },
-                document: { write: function(){} }
-            }; // 返回假窗口对象避免脚本报错
+                focus: function(){}, blur: function(){}, close: function(){},
+                closed: false, location: { href: "" }
+            };
         };
 
-        // 2. 冻结 window.open 防止被重新赋值
-        try {
-            Object.defineProperty(window, 'open', {
-                value: window.open,
-                writable: false,
-                configurable: false
-            });
-            console.log("✅ window.open 已被永久锁定");
-        } catch(e) {
-            console.warn("⚠️ 无法锁定 window.open:", e.message);
-        }
-
-        // 3. 拦截所有可能的跳转方法
-        const blockRedirect = function(method, url) {
-            console.warn("🚫 已阻止", method, "跳转到:", url);
-            return false;
-        };
-
-        // 重写 location 方法
-        const originalLocation = window.location;
-        window.location.replace = function(url) { return blockRedirect("location.replace", url); };
-        window.location.assign = function(url) { return blockRedirect("location.assign", url); };
-
-        // 4. 监听所有点击事件并强制阻止跳转
-        document.addEventListener('click', function(event) {
-            console.log("🔍 拦截点击:", event.target.tagName);
-
-            // 强制阻止所有可疑点击
-            setTimeout(() => {
-                const currentUrl = window.location.href;
-                if (currentUrl.includes('cmug') || currentUrl.includes('gitlab.io') ||
-                    currentUrl !== originalLocation.href) {
-                    console.error("🚨 检测到恶意跳转，强制阻止！");
-                    window.stop();
-                    window.history.back();
-                }
-            }, 1);
-        }, true);
-
-        // 5. 每50ms监控URL变化
-        let lastHref = window.location.href;
-        const urlMonitor = setInterval(() => {
-            if (window.location.href !== lastHref) {
-                if (window.location.href.includes('cmug') || window.location.href.includes('gitlab.io')) {
-                    console.error("🚨 URL监控：检测到恶意跳转，立即阻止！");
-                    window.stop();
-                    window.history.back();
-                    // 强制恢复原URL
-                    try {
-                        originalLocation.replace(lastHref);
-                    } catch(e) {
-                        console.warn("无法恢复原URL");
-                    }
-                } else {
-                    lastHref = window.location.href;
-                }
-            }
-        }, 50);
-
-        // 6. 专门拦截发现的广告SDK
-        const blockAdSDK = function(sdkName, method) {
-            console.warn("🚫 已阻止广告SDK调用:", sdkName, method);
-            return false;
-        };
-
-        // 拦截 GameDistribution SDK
-        window.gdsdk = window.gdsdk || {};
-        window.gdsdk.showAd = function() { return blockAdSDK("GameDistribution", "showAd"); };
-
-        // 拦截 ubg235 commercial 系统
-        window.ubg235 = window.ubg235 || {};
-        window.ubg235.commercial = window.ubg235.commercial || {};
-        window.ubg235.commercial.ADS = function() { return blockAdSDK("ubg235", "commercial.ADS"); };
-
-        // 7. 拦截所有可能的广告相关全局对象
-        const adBlacklist = ['gdsdk', 'ubg235', 'commercial', 'showAd', 'openGame'];
-        adBlacklist.forEach(adObj => {
-            if (window[adObj] && typeof window[adObj] === 'object') {
-                for (let method in window[adObj]) {
-                    if (typeof window[adObj][method] === 'function') {
-                        window[adObj][method] = function() {
-                            return blockAdSDK(adObj, method);
-                        };
-                    }
-                }
-            }
+        // 2. 锁定 window.open
+        Object.defineProperty(window, 'open', {
+            value: window.open,
+            writable: false,
+            configurable: false
         });
 
-        console.log("✅ 超早期防护系统已激活，所有跳转将被强制阻止！");
+        // 3. 直接阻止 gd-sdk.js 脚本加载
+        const originalCreateElement = document.createElement;
+        document.createElement = function(tagName) {
+            const element = originalCreateElement.call(this, tagName);
+            if (tagName.toLowerCase() === 'script') {
+                const originalSetAttribute = element.setAttribute;
+                element.setAttribute = function(name, value) {
+                    if (name === 'src' && (
+                        value.includes('gd-sdk.js') ||
+                        value.includes('gameDistribution') ||
+                        value.includes('cmug') ||
+                        value.includes('gitlab.io')
+                    )) {
+                        console.warn("🚫 已阻止加载恶意脚本:", value);
+                        return; // 不设置 src，阻止加载
+                    }
+                    return originalSetAttribute.call(this, name, value);
+                };
+            }
+            return element;
+        };
+
+        // 4. 拦截 GameDistribution SDK 对象
+        window.gdsdk = {
+            showAd: function() {
+                console.warn("🚫 已阻止 GameDistribution 广告");
+                return Promise.resolve();
+            },
+            preloadAd: function() {
+                console.warn("🚫 已阻止 GameDistribution 预加载");
+                return Promise.resolve();
+            }
+        };
+
+        // 5. 全局 SDK 拦截
+        window.SDK_ShowAd = function() {
+            console.warn("🚫 已阻止 SDK_ShowAd 调用");
+            return false;
+        };
+
+        console.log("✅ 反广告跳转防护已激活");
     </script>
     <script src="TemplateData/UnityProgress.js"></script>
     <script src="Build/UnityLoader.js"></script>
