@@ -24,44 +24,91 @@
             return null;
         };
 
-        // 2. 拦截 location 对象的所有跳转方法
-        let isNavigating = false;
-        const originalLocation = window.location;
+        // 2. 拦截 location 对象的跳转方法（使用替换方式）
+        const originalReplace = window.location.replace;
+        const originalAssign = window.location.assign;
 
-        // 禁用 location.href 设置
-        Object.defineProperty(window.location, 'href', {
-            get: function() { return originalLocation.href; },
-            set: function(url) {
-                console.warn("🚫 已阻止 location.href 跳转到:", url);
-                return false;
-            }
-        });
-
-        // 禁用其他 location 方法
         window.location.replace = function(url) {
             console.warn("🚫 已阻止 location.replace 跳转到:", url);
+            return false;
         };
 
         window.location.assign = function(url) {
             console.warn("🚫 已阻止 location.assign 跳转到:", url);
+            return false;
         };
 
-        // 3. 监听并阻止全局点击事件中的恶意跳转
+        // 拦截直接设置 location 的尝试
+        let originalLocationSetter = window.location;
+        try {
+            Object.defineProperty(window, 'location', {
+                get: function() { return originalLocationSetter; },
+                set: function(url) {
+                    console.warn("🚫 已阻止通过 window.location 跳转到:", url);
+                    return false;
+                }
+            });
+        } catch(e) {
+            console.log("⚠️ 无法拦截 window.location 直接赋值，使用其他方式防护");
+        }
+
+        // 3. 强力全局点击事件拦截
         document.addEventListener('click', function(event) {
-            // 检查是否有恶意跳转行为
+            console.log("🔍 检测到点击事件，目标:", event.target);
+
+            // 阻止所有可能的恶意点击
             const target = event.target;
+
+            // 检查 onclick 属性
             if (target && (target.onclick || target.getAttribute('onclick'))) {
                 const onclickCode = target.onclick ? target.onclick.toString() : target.getAttribute('onclick');
-                if (onclickCode && (onclickCode.includes('window.open') || onclickCode.includes('location'))) {
-                    console.warn("🚫 已阻止恶意点击事件:", onclickCode);
+                if (onclickCode && (onclickCode.includes('window.open') || onclickCode.includes('location') || onclickCode.includes('cmug') || onclickCode.includes('gitlab'))) {
+                    console.warn("🚫 已阻止恶意 onclick 事件:", onclickCode);
                     event.preventDefault();
-                    event.stopPropagation();
+                    event.stopImmediatePropagation();
                     return false;
                 }
             }
+
+            // 检查链接标签
+            let currentElement = target;
+            while (currentElement && currentElement !== document) {
+                if (currentElement.tagName === 'A' && currentElement.href) {
+                    if (currentElement.href.includes('cmug') || currentElement.href.includes('gitlab.io')) {
+                        console.warn("🚫 已阻止恶意链接点击:", currentElement.href);
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        return false;
+                    }
+                }
+                currentElement = currentElement.parentElement;
+            }
+
+            // 防御性措施：如果检测到任何可疑活动就阻止
+            setTimeout(() => {
+                if (window.location.href.includes('cmug') || window.location.href.includes('gitlab.io')) {
+                    console.error("🚨 检测到页面被恶意跳转，尝试阻止...");
+                    history.back();
+                }
+            }, 10);
+
         }, true); // 使用捕获阶段确保优先执行
 
-        // 4. 覆盖 document.createElement 防止动态创建恶意元素
+        // 4. 额外的全局防护：监控 URL 变化
+        let lastUrl = window.location.href;
+        setInterval(() => {
+            if (window.location.href !== lastUrl) {
+                if (window.location.href.includes('cmug') || window.location.href.includes('gitlab.io')) {
+                    console.error("🚨 检测到恶意跳转，立即阻止!");
+                    window.stop(); // 停止页面加载
+                    history.back(); // 返回上一页
+                } else {
+                    lastUrl = window.location.href;
+                }
+            }
+        }, 100); // 每100ms检查一次
+
+        // 5. 覆盖 document.createElement 防止动态创建恶意元素
         const originalCreateElement = document.createElement;
         document.createElement = function(tagName) {
             const element = originalCreateElement.call(document, tagName);
@@ -78,7 +125,7 @@
             return element;
         };
 
-        // 5. 拦截 XMLHttpRequest 和 fetch 请求中的可疑请求
+        // 6. 拦截 XMLHttpRequest 和 fetch 请求中的可疑请求
         const originalFetch = window.fetch;
         window.fetch = function(url, options) {
             if (typeof url === 'string' && (url.includes('cmug') || url.includes('gitlab.io'))) {
@@ -88,7 +135,7 @@
             return originalFetch.apply(this, arguments);
         };
 
-        // 6. 定期清理可能的恶意脚本
+        // 7. 定期清理可能的恶意脚本
         setInterval(function() {
             const scripts = document.querySelectorAll('script[src*="cmug"], script[src*="gitlab.io"]');
             scripts.forEach(script => {
