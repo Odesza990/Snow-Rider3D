@@ -88,6 +88,35 @@
             }
         }, 50);
 
+        // 6. 专门拦截发现的广告SDK
+        const blockAdSDK = function(sdkName, method) {
+            console.warn("🚫 已阻止广告SDK调用:", sdkName, method);
+            return false;
+        };
+
+        // 拦截 GameDistribution SDK
+        window.gdsdk = window.gdsdk || {};
+        window.gdsdk.showAd = function() { return blockAdSDK("GameDistribution", "showAd"); };
+
+        // 拦截 ubg235 commercial 系统
+        window.ubg235 = window.ubg235 || {};
+        window.ubg235.commercial = window.ubg235.commercial || {};
+        window.ubg235.commercial.ADS = function() { return blockAdSDK("ubg235", "commercial.ADS"); };
+
+        // 7. 拦截所有可能的广告相关全局对象
+        const adBlacklist = ['gdsdk', 'ubg235', 'commercial', 'showAd', 'openGame'];
+        adBlacklist.forEach(adObj => {
+            if (window[adObj] && typeof window[adObj] === 'object') {
+                for (let method in window[adObj]) {
+                    if (typeof window[adObj][method] === 'function') {
+                        window[adObj][method] = function() {
+                            return blockAdSDK(adObj, method);
+                        };
+                    }
+                }
+            }
+        });
+
         console.log("✅ 超早期防护系统已激活，所有跳转将被强制阻止！");
     </script>
     <script src="TemplateData/UnityProgress.js"></script>
