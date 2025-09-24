@@ -12,105 +12,53 @@
     <meta name="author" content="Your Name">
     <meta name="keywords" content="Snow Rider 3D, skiing game, winter sports, snowboarding, ski game, mountain landscapes, skiing adventure, snowboarding adventure, snowy mountain, sleigh ride, winter game">
     <script>
-        // === 超早期防护：直接禁用 gd-sdk.js 和恶意跳转 ===
-        console.log("🛡️ 启动反广告跳转防护...");
+        // 精确拦截恶意脚本加载
+        (function() {
+            const originalFetch = window.fetch;
+            const originalXHROpen = XMLHttpRequest.prototype.open;
+            const originalCreateElement = document.createElement;
 
-        // 1. 完全禁用 window.open
-        window.open = function(url) {
-            console.warn("🚫 已阻止 window.open 跳转到:", url);
-            return {
-                focus: function(){}, blur: function(){}, close: function(){},
-                closed: false, location: { href: "" }
+            // 拦截 fetch 请求
+            window.fetch = function(url, ...args) {
+                if (typeof url === 'string' && (url.includes('gd-sdk.js') || url.includes('pages.dev/patch'))) {
+                    console.warn('🚫 已阻止恶意脚本请求:', url);
+                    return Promise.reject(new Error('Blocked malicious script'));
+                }
+                return originalFetch.call(this, url, ...args);
             };
-        };
 
-        // 2. 锁定 window.open
-        Object.defineProperty(window, 'open', {
-            value: window.open,
-            writable: false,
-            configurable: false
-        });
-
-        // 3. 直接阻止 gd-sdk.js 脚本加载
-        const originalCreateElement = document.createElement;
-        document.createElement = function(tagName) {
-            const element = originalCreateElement.call(this, tagName);
-            if (tagName.toLowerCase() === 'script') {
-                const originalSetAttribute = element.setAttribute;
-                element.setAttribute = function(name, value) {
-                    if (name === 'src' && (
-                        value.includes('gd-sdk.js') ||
-                        value.includes('gameDistribution') ||
-                        value.includes('cmug') ||
-                        value.includes('gitlab.io')
-                    )) {
-                        console.warn("🚫 已阻止加载恶意脚本:", value);
-                        return; // 不设置 src，阻止加载
-                    }
-                    return originalSetAttribute.call(this, name, value);
-                };
-            }
-            return element;
-        };
-
-        // 4. 创建完整的假 GameDistribution SDK
-        window.gdsdk = {
-            // 广告相关方法
-            showAd: function(type, options) {
-                console.warn("🚫 已阻止 GameDistribution 广告显示:", type);
-                if (options && options.onStart) options.onStart();
-                if (options && options.onComplete) options.onComplete();
-                return Promise.resolve();
-            },
-            preloadAd: function(type) {
-                console.warn("🚫 已阻止 GameDistribution 广告预加载:", type);
-                return Promise.resolve();
-            },
-            // 插屏广告对象
-            Interstitial: {
-                show: function(options) {
-                    console.warn("🚫 已阻止插屏广告显示");
-                    if (options && options.onStart) options.onStart();
-                    if (options && options.onComplete) options.onComplete();
-                    return Promise.resolve();
-                },
-                preload: function() {
-                    console.warn("🚫 已阻止插屏广告预加载");
-                    return Promise.resolve();
+            // 拦截 XMLHttpRequest
+            XMLHttpRequest.prototype.open = function(method, url, ...args) {
+                if (typeof url === 'string' && (url.includes('gd-sdk.js') || url.includes('pages.dev/patch'))) {
+                    console.warn('🚫 已阻止恶意 XHR 请求:', url);
+                    url = 'data:text/javascript,'; // 空脚本
                 }
-            },
-            // 激励广告对象
-            Rewarded: {
-                show: function(options) {
-                    console.warn("🚫 已阻止激励广告显示");
-                    if (options && options.onStart) options.onStart();
-                    if (options && options.onRewarded) options.onRewarded();
-                    if (options && options.onComplete) options.onComplete();
-                    return Promise.resolve();
-                },
-                preload: function() {
-                    console.warn("🚫 已阻止激励广告预加载");
-                    return Promise.resolve();
+                return originalXHROpen.call(this, method, url, ...args);
+            };
+
+            // 拦截动态脚本创建
+            document.createElement = function(tagName) {
+                const element = originalCreateElement.call(this, tagName);
+                if (tagName.toLowerCase() === 'script') {
+                    const originalSetSrc = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src').set;
+                    Object.defineProperty(element, 'src', {
+                        set: function(value) {
+                            if (typeof value === 'string' && (value.includes('gd-sdk.js') || value.includes('pages.dev/patch'))) {
+                                console.warn('🚫 已阻止恶意脚本 src:', value);
+                                return; // 不设置 src
+                            }
+                            originalSetSrc.call(this, value);
+                        },
+                        get: function() {
+                            return this.getAttribute('src') || '';
+                        }
+                    });
                 }
-            },
-            // SDK 初始化和状态
-            init: function(options) {
-                console.warn("🚫 GameDistribution SDK 初始化被拦截");
-                if (options && options.onReady) options.onReady();
-                return Promise.resolve();
-            },
-            ready: true,
-            adBlocked: false
-        };
+                return element;
+            };
 
-        // 5. 全局 SDK 拦截函数
-        window.SDK_ShowAd = function(type, callback) {
-            console.warn("🚫 已阻止 SDK_ShowAd 调用:", type);
-            if (callback) callback();
-            return true; // 返回 true 表示广告"成功"显示
-        };
-
-        console.log("✅ 反广告跳转防护已激活");
+            console.log('✅ 恶意脚本拦截器已启动');
+        })();
     </script>
     <script src="TemplateData/UnityProgress.js"></script>
     <script src="Build/UnityLoader.js"></script>
