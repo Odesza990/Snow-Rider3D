@@ -53,22 +53,61 @@
             return element;
         };
 
-        // 4. 拦截 GameDistribution SDK 对象
+        // 4. 创建完整的假 GameDistribution SDK
         window.gdsdk = {
-            showAd: function() {
-                console.warn("🚫 已阻止 GameDistribution 广告");
+            // 广告相关方法
+            showAd: function(type, options) {
+                console.warn("🚫 已阻止 GameDistribution 广告显示:", type);
+                if (options && options.onStart) options.onStart();
+                if (options && options.onComplete) options.onComplete();
                 return Promise.resolve();
             },
-            preloadAd: function() {
-                console.warn("🚫 已阻止 GameDistribution 预加载");
+            preloadAd: function(type) {
+                console.warn("🚫 已阻止 GameDistribution 广告预加载:", type);
                 return Promise.resolve();
-            }
+            },
+            // 插屏广告对象
+            Interstitial: {
+                show: function(options) {
+                    console.warn("🚫 已阻止插屏广告显示");
+                    if (options && options.onStart) options.onStart();
+                    if (options && options.onComplete) options.onComplete();
+                    return Promise.resolve();
+                },
+                preload: function() {
+                    console.warn("🚫 已阻止插屏广告预加载");
+                    return Promise.resolve();
+                }
+            },
+            // 激励广告对象
+            Rewarded: {
+                show: function(options) {
+                    console.warn("🚫 已阻止激励广告显示");
+                    if (options && options.onStart) options.onStart();
+                    if (options && options.onRewarded) options.onRewarded();
+                    if (options && options.onComplete) options.onComplete();
+                    return Promise.resolve();
+                },
+                preload: function() {
+                    console.warn("🚫 已阻止激励广告预加载");
+                    return Promise.resolve();
+                }
+            },
+            // SDK 初始化和状态
+            init: function(options) {
+                console.warn("🚫 GameDistribution SDK 初始化被拦截");
+                if (options && options.onReady) options.onReady();
+                return Promise.resolve();
+            },
+            ready: true,
+            adBlocked: false
         };
 
-        // 5. 全局 SDK 拦截
-        window.SDK_ShowAd = function() {
-            console.warn("🚫 已阻止 SDK_ShowAd 调用");
-            return false;
+        // 5. 全局 SDK 拦截函数
+        window.SDK_ShowAd = function(type, callback) {
+            console.warn("🚫 已阻止 SDK_ShowAd 调用:", type);
+            if (callback) callback();
+            return true; // 返回 true 表示广告"成功"显示
         };
 
         console.log("✅ 反广告跳转防护已激活");
